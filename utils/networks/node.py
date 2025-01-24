@@ -1,3 +1,5 @@
+import json
+
 class Node:
     def __init__(self, data):
         self.data = data
@@ -15,4 +17,4 @@ class Node:
         return hash(self.data)
     
     def to_dict(self):
-        return { "data" : self.data }
+        return self.data.to_dict()

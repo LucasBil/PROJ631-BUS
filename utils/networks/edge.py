@@ -13,7 +13,11 @@ class Edge:
     
     def to_dict(self):
         return {
-            "src": self.src,
-            "dest": self.dest,
-            "weight": self.weight
+            "src": self.src.to_dict(),
+            "dest": self.dest.to_dict(),
+            "other": {
+                "start": self.weight[0].strftime('%H:%M'),
+                "end": self.weight[1].strftime('%H:%M'),
+                "line": self.weight[3]
+            }
         }
