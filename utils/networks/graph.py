@@ -1,6 +1,8 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
+from utils.networks.node import Node
+from utils.networks.edge import Edge
 import os
 
 class Graph:
@@ -53,16 +55,47 @@ class Graph:
             pass
 
     def shortest(self, src, dest, datetime):
-        def getWeight(args):
-            return 1 # weight
-        return self.djikstra(src, dest, datetime, getWeight)
-    
-    def fastest(self, src, dest, datetime): # algo djikstra
-        def getWeight(args):
-            return (args[0].weight[1] - args[1]).total_seconds() # waiting + trajet
-        return self.djikstra(src, dest, datetime, getWeight)
+        def lambda_process_edge(distances, current_node, datetime):
+            current_time = datetime if len(distances[current_node]) == 0 else distances[current_node][-1].weight[1]
+            edges = list(filter(lambda edge: edge.weight[0] >= current_time, self.edges)) # remove edges that are not available
+            edges_of_node_src = list(filter(lambda edge: edge.src == current_node, edges))
 
-    def djikstra(self, src, dest, datetime, lambda_weight):
+            for edge in edges_of_node_src:
+                edge.weight[2] = 1
+
+            return edges_of_node_src 
+        
+        return self.djikstra(src, dest, datetime, lambda_process_edge)
+    
+    def fastest(self, src, dest, datetime):
+        def lambda_process_edge(distances, current_node, datetime):
+            current_time = datetime if len(distances[current_node]) == 0 else distances[current_node][-1].weight[1]
+            edges = list(filter(lambda edge: edge.weight[0] >= current_time, self.edges)) # remove edges that are not available
+            edges_of_node_src = list(filter(lambda edge: edge.src == current_node, edges))
+
+            for edge in edges_of_node_src:
+                edge.weight[2] = (edge.weight[1] - current_time).total_seconds() # waiting + trajet
+
+            return edges_of_node_src 
+        
+        return self.djikstra(src, dest, datetime, lambda_process_edge)
+    
+    def foremost(self, src, dest, datetime):
+        def lambda_process_edge(distances, current_node, datetime):
+            # weight => (start, end, weight, line)
+            current_time = datetime if len(distances[current_node]) == 0 else distances[current_node][-1].weight[0]
+            edges = list(filter(lambda edge: edge.weight[1] <= current_time, self.edges)) # remove edges that are not available
+            edges = list(map(lambda edge : Edge(edge.dest, edge.src, [edge.weight[1], edge.weight[0], edge.weight[2], edge.weight[3]]), edges)) # reverse edges
+            edges = list(filter(lambda edge: edge.src == current_node, edges)) # remove edges that not src node
+
+            for edge in edges:
+                edge.weight[2] = abs((edge.weight[1] - current_time).total_seconds()) # waiting + trajet
+
+            return edges 
+        
+        return self.djikstra(dest, src, datetime, lambda_process_edge)
+
+    def djikstra(self, src, dest, datetime, lambda_process_edge):
         current_node = src
         nodes_toVisited = list(filter(lambda node: node != src, self.nodes))
         visited = [src]
@@ -71,13 +104,7 @@ class Graph:
             distances[node] = None if node != src else []
             
         while len(nodes_toVisited) > 0:
-            seconds_to_add = sum([edge.weight[2] for edge in distances[current_node]])
-            current_time = datetime + timedelta(seconds=seconds_to_add)
-
-            edges = list(filter(lambda edge: edge.weight[0] >= current_time, self.edges)) # remove edges that are not available
-            edges_of_node_src = list(filter(lambda edge: edge.src == current_node, edges))
-            for edge in edges_of_node_src:
-                edge.weight[2] = lambda_weight([edge, current_time])
+            edges_of_node_src = lambda_process_edge(distances, current_node, datetime)
             
             for node in self.nodes:
                 edges_of_node_dest = list(filter(lambda edge: edge.dest == node, edges_of_node_src))
@@ -96,14 +123,12 @@ class Graph:
             to_visited_weight = {}
             for node in nodes_toVisited:
                 if distances[node] is None:
-                    continue
-                to_visited_weight[node] = sum([edge.weight[2] for edge in distances[node]])
+                    to_visited_weight[node] = float('inf')
+                else:
+                    to_visited_weight[node] = sum([edge.weight[2] for edge in distances[node]])
 
             current_node = min(to_visited_weight, key=lambda node: to_visited_weight[node])
             visited += [current_node]
             nodes_toVisited.remove(current_node)
         
-        return (
-            [edge.src for edge in distances[dest]], # nodes
-            distances[dest] # edges
-        )
+        return distances[dest]
