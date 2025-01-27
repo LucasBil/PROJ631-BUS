@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from utils.networks.node import Node
 from utils.networks.edge import Edge
 import os
+from matplotlib.lines import Line2D
 
 class Graph:
     def __init__(self, nodes=[], edges=[]):
@@ -33,15 +34,68 @@ class Graph:
             if edge.weight[0] > edge.weight[1]:
                 return True
         return False
+    
+    def __triangleColor(self, i):
+        # Cycle de base pour les trois couleurs primaires
+        base_colors = [
+            (255, 0, 0),  # Rouge
+            (0, 255, 0),  # Vert
+            (0, 0, 255)   # Bleu
+        ]
+        
+        # Diviser l'index en parties : la position dans le cycle et la subdivision
+        circle_part = i % 3
+        triangle_subdivision = i // 3
+
+        # Couleurs de base
+        primary_color = base_colors[circle_part]
+        secondary_color = base_colors[(circle_part + 1) % 3]
+
+        # Mélanger les couleurs en fonction de la subdivision
+        ratio = 1 / (triangle_subdivision + 2)  # Plus la subdivision est grande, plus le mélange est équilibré
+        r = int(primary_color[0] * (1 - ratio) + secondary_color[0] * ratio)
+        g = int(primary_color[1] * (1 - ratio) + secondary_color[1] * ratio)
+        b = int(primary_color[2] * (1 - ratio) + secondary_color[2] * ratio)
+
+        # Retourner la couleur en hexadécimal
+        return f"#{r:02X}{g:02X}{b:02X}"
 
     def show(self):
-        G = nx.DiGraph()
+        G = nx.Graph()
+
+        lines = [edge.weight[3] for edge in self.edges]
+        colors = {}
+        for line in lines:
+            if line in colors:
+                continue
+            i = len(colors.keys())
+            colors[line] = self.__triangleColor(i)
+
         G.add_nodes_from(self.nodes)
         for edge in self.edges:
-            G.add_edge(edge.src, edge.dest, hour_start=edge.weight[0], hour_end=edge.weight[1])
+            G.add_edge(edge.src, edge.dest, color=colors[edge.weight[3]])
 
-        # Récupérer les poids pour les afficher
-        nx.draw(G, with_labels=True, font_weight='bold')
+        # Configuration style graph
+        pos = nx.spring_layout(G, k=1.5, iterations=200)  # Ajuste `k` et `iterations` pour améliorer l'espacement
+        edge_colors = nx.get_edge_attributes(G, 'color').values()
+        plt.figure(figsize=(12, 12))
+        nx.draw(
+            G,
+            pos=pos,
+            edge_color=edge_colors,  # Appliquer les couleurs d'arêtes
+            with_labels=True,  # Afficher les labels des nœuds
+            node_size=700,  # Taille des nœuds
+            font_size=10,  # Taille de la police
+            font_weight="bold",
+            node_color="lightblue",  # Couleur des nœuds
+            edgecolors="black"  # Contour des nœuds
+        )
+
+        legend_elements = [Line2D([0],[0], color=colors[line], lw=2, label=line) for line in colors.keys()]
+        legend_elements += [ Line2D([0], [0], marker='o', color='lightblue', markersize=10, label='Arrêt de bus', linestyle='None', markeredgecolor='black')]
+
+        plt.legend(handles=legend_elements, loc='upper right', fontsize=12, title="Légende", title_fontsize=14)
+        plt.title("Graphique du système de bus", fontsize=16)
 
         # Create empty file if not exists
         if not os.path.exists("static/assets/map.png"):
@@ -52,7 +106,7 @@ class Graph:
         try:
             plt.savefig("static/assets/map.png")
         except:
-            pass
+            print("Fails to save map")
 
     def shortest(self, src, dest, datetime):
         def lambda_process_edge(distances, current_node, datetime):
