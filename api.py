@@ -1,15 +1,23 @@
 from flask import Flask, request, jsonify
+from flask_swagger import swagger
+import json
+from utils.encoder import CustomEncoder
+from datetime import datetime
+import holidays
 from utils.networks.graph import Graph
 from utils.networks.node import Node
 from utils.networks.edge import Edge
 from entity.station import Station
 from entity.db import DB
-import json
-from utils.encoder import CustomEncoder
-from datetime import datetime
-import holidays
 
 app = Flask(__name__)
+
+@app.route("/swagger")
+def spec():
+    swag = swagger(app)
+    swag['info']['version'] = "1.0"
+    swag['info']['title'] = "Bus API"
+    return jsonify(swag)
 
 def createNodes(db:DB, isWeHolidays):
     REQUEST_GETALL_STATIONS_BY_WE_HOLIDAYS = """
@@ -503,3 +511,7 @@ def getForemost():
 
     edges = GRAPHS[graphType].foremost(srcNode, destNode, time_only)
     return json.dumps(edges, cls=CustomEncoder, ensure_ascii=False).encode('utf-8')
+
+# Lancer l'application
+if __name__ == '__main__':
+    app.run(debug=True)
